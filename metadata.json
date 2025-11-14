@@ -1,0 +1,5 @@
+{
+  "name": "AI Image Generator",
+  "description": "An application to generate images from text prompts using AI. Users can select the generation model, aspect ratio, and the number of images to create.",
+  "requestFramePermissions": []
+}
