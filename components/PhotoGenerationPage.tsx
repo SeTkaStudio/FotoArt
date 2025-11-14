@@ -385,7 +385,7 @@ export const PhotoGenerationPage: React.FC<PhotoGenerationPageProps> = ({ onNavi
   return (
     <div className="min-h-screen bg-brand-primary flex flex-col md:flex-row">
       <header className="md:hidden p-4 bg-brand-secondary/50 backdrop-blur-sm border-b border-brand-secondary flex items-center justify-between">
-          <h1 className="text-xl font-bold text-brand-text-primary">Генерация фото</h1>
+s        <h1 className="text-xl font-bold text-brand-text-primary">Генерация фото</h1>
           <button onClick={onNavigateBack} title="Назад в меню" className="text-brand-text-secondary hover:text-brand-accent transition-colors">
             <BackIcon />
           </button>
@@ -438,14 +438,14 @@ export const PhotoGenerationPage: React.FC<PhotoGenerationPageProps> = ({ onNavi
                 {currentModel.supportsImageInput && (
                     <>
                         <button
-s                          type="button"
+          _                type="button"
                             onClick={() => fileInputRef.current?.click()}
                             title="Прикрепить изображение"
                             className="absolute top-2 right-2 p-2 rounded-full text-brand-text-secondary hover:bg-brand-primary hover:text-brand-accent transition-colors"
                         >
                             <UploadIcon />
                         </button>
-                        <input
+                  _     <input
                             ref={fileInputRef}
                             type="file"
                             className="sr-only"
@@ -455,7 +455,7 @@ s                          type="button"
                     </>
                 )}
             </div>
-s            {baseImage && (
+             {baseImage && (
                 <div className="mt-2 relative w-20 h-20 rounded-md overflow-hidden border-2 border-brand-secondary">
                     <img src={baseImage.preview} alt="Preview" className="w-full h-full object-cover" />
                     <button
@@ -464,10 +464,10 @@ s            {baseImage && (
                         title="Удалить изображение"
                     >
                         <CloseIcon />
-a                  </button>
+                    </button>
                 </div>
             )}
-          _   {!currentModel.supportsImageInput && (
+             {!currentModel.supportsImageInput && (
                 <p className="mt-2 text-xs text-brand-text-secondary">
                     Модель {currentModel.name} не поддерживает загрузку изображений.
                 </p>
@@ -480,7 +480,7 @@ a                  </button>
           </label>
           <select
             id="model-select"
-s            className="mt-1 block w-full pl-3 pr-10 py-2 text-base bg-brand-secondary border-gray-600 focus:outline-none focus:ring-brand-accent focus:border-brand-accent sm:text-sm rounded-md text-brand-text-primary"
+            className="mt-1 block w-full pl-3 pr-10 py-2 text-base bg-brand-secondary border-gray-600 focus:outline-none focus:ring-brand-accent focus:border-brand-accent sm:text-sm rounded-md text-brand-text-primary"
             value={selectedModel}
             onChange={(e) => {
                 const model = PHOTO_GENERATION_MODELS.find(m => m.id === e.target.value);
@@ -497,12 +497,12 @@ s            className="mt-1 block w-full pl-3 pr-10 py-2 text-base bg-bra
 
         <SelectInput
           label="Формат изображения"
-          options={aspectRatioOptions.map(opt => opt.label)}
+s          options={aspectRatioOptions.map(opt => opt.label)}
           value={aspectRatioOptions.find(opt => opt.ratio === aspectRatio)?.label || ''}
           onChange={(val) => {
               const selectedOpt = aspectRatioOptions.find(opt => opt.label === val);
-s              if (selectedOpt) {
-                  setAspectRatio(selectedOpt.ratio);
+              if (selectedOpt) {
+                setAspectRatio(selectedOpt.ratio);
               }
           }}
         />
@@ -513,7 +513,7 @@ s              if (selectedOpt) {
             </label>
             <input
                 id="image-count"
-                type="range"
+s              type="range"
                 min="1"
                 max={currentModel.maxImages}
                 value={numberOfImages}
@@ -523,14 +523,14 @@ s              if (selectedOpt) {
              <p className="mt-2 text-xs text-brand-text-secondary">
                 {currentModel.name} генерирует до {currentModel.maxImages} изображений.
              </p>
-        </div>
+D      </div>
 
         <div className="pt-4 sticky bottom-0 bg-brand-secondary/30 md:bg-transparent pb-4 md:pb-0">
            {isLoading ? (
               <button
                 onClick={handleStopGeneration}
                 className="w-full bg-red-600 text-white font-bold py-3 px-4 rounded-md hover:bg-red-500 transition-colors flex items-center justify-center"
-s              >
+              >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M5 5a1 1 0 00-1 1v8a1 1 0 001 1h8a1 1 0 001-1V6a1 1 0 00-1-1H5z" clipRule="evenodd" />
                 </svg>
@@ -539,14 +539,14 @@ s              >
            ) : (
               <button
                 onClick={handleSubmit}
-a                disabled={isSubmitDisabled}
+                disabled={isSubmitDisabled}
                 className="w-full bg-brand-accent text-brand-primary font-bold py-3 px-4 rounded-md hover:bg-amber-400 transition-colors disabled:bg-gray-500 disabled:cursor-not-allowed flex items-center justify-center"
               >
                 { currentUser?.paymentMethod === 'apiKey' 
                   ? 'Сгенерировать (свой API ключ)'
                   : `Сгенерировать (${generationCost} ${generationCost === 1 ? 'кредит' : (generationCost > 1 && generationCost < 5) ? 'кредита' : 'кредитов'})`
-                }
-s            </button>
+D              }
+        _      </button>
            )}
            {creditError && <p className="text-sm text-center text-red-500 mt-2">{creditError}</p>}
            {currentUser?.paymentMethod === 'credits' && (currentUser?.credits ?? 0) < generationCost && !isLoading && !creditError && <p className="text-sm text-center text-yellow-400 mt-2">Недостаточно кредитов для генерации {generationCost} изображений.</p>}
@@ -556,7 +556,7 @@ s            </button>
       <main className="flex-1 bg-brand-primary">
         <ImageGallery 
           title="Сгенерированные изображения"
-BODY          images={generatedImages}
+          images={generatedImages}
           onDownload={handleDownload}
           onRegenerate={handleRegenerate}
           onDelete={handleDelete}
@@ -564,16 +564,16 @@ BODY          images={generatedImages}
           onImageClick={handleImageClick}
           isFavorite={isFavorite}
           onAddToFavorites={(src) => setImageToFavorite(src)}
-A        />
+        />
       </main>
 
       {selectedImage && (
         <ImageModal 
           image={selectedImage}
           onClose={() => setSelectedImage(null)}
-      _    onDownload={handleDownload}
+          onDownload={handleDownload}
           onRegenerate={handleRegenerate}
-G          onDelete={handleDelete}
+s          onDelete={handleDelete}
           isFavorite={selectedImage.src ? isFavorite(selectedImage.src) : false}
           onAddToFavorites={(src) => setImageToFavorite(src)}
           onRemoveFromFavorites={removeFavorite}
