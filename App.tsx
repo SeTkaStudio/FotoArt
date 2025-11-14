@@ -1,155 +1,473 @@
-
-import React, { useState, useCallback } from 'react';
-import { generateImagesFromPrompt } from './services/geminiService';
+import React, { useState, useCallback, useRef } from 'react';
+import { FileUpload } from './components/FileUpload';
 import { SelectInput } from './components/SelectInput';
-import { Spinner } from './components/Spinner';
-import { MODELS, ASPECT_RATIOS, IMAGE_COUNTS } from './constants';
-import type { AspectRatio } from './types';
+import { ImageGallery } from './components/ImageGallery';
+import { ImageModal } from './components/ImageModal';
+import { ToggleSwitch } from './components/ToggleSwitch';
+import { AddToFavoritesModal } from './components/AddToFavoritesModal';
+import { ImageFile, OutputMode, GeneratedImage, ResolutionOption, BackgroundOption, ShotType, ClothingOption } from './types';
+import { RESOLUTION_OPTIONS, VARIATION_PROMPTS, BASE_PROMPT, RESOLUTION_PROMPT_MAP, BACKGROUND_OPTIONS, BACKGROUND_PROMPT_MAP, SHOT_TYPE_OPTIONS, SHOT_TYPE_PROMPT_MAP, CLOTHING_OPTIONS, CLOTHING_PROMPT_MAP, AUTOMATIC_BACKGROUND_SUGGESTIONS } from './constants';
+import { generatePortrait } from './services/geminiService';
+import { useAuth } from './contexts/AuthContext';
 
-const App: React.FC = () => {
-    const [prompt, setPrompt] = useState<string>('A majestic lion wearing a crown, cinematic lighting, hyper-detailed photo.');
-    const [selectedModel, setSelectedModel] = useState<string>(MODELS[0].id);
-    const [selectedAspectRatio, setSelectedAspectRatio] = useState<AspectRatio>(ASPECT_RATIOS[0].id);
-    const [selectedImageCount, setSelectedImageCount] = useState<number>(IMAGE_COUNTS[0].id);
-    const [generatedImages, setGeneratedImages] = useState<string[]>([]);
-    const [isLoading, setIsLoading] = useState<boolean>(false);
-    const [error, setError] = useState<string | null>(null);
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-    const handleGenerateClick = useCallback(async () => {
-        if (!prompt.trim()) {
-            setError("Please enter a prompt to generate images.");
-            return;
+const HomeIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+    </svg>
+);
+
+
+interface AppProps {
+  onNavigateHome: () => void;
+}
+
+const App: React.FC<AppProps> = ({ onNavigateHome }) => {
+  const [imageFile, setImageFile] = useState<ImageFile | null>(null);
+  const [withEmotions, setWithEmotions] = useState(false);
+  const [shotType, setShotType] = useState<ShotType>(ShotType.CloseUp);
+  const [resolution, setResolution] = useState<ResolutionOption>(ResolutionOption.Square);
+  const [background, setBackground] = useState<BackgroundOption>(BackgroundOption.Automatic);
+  const [backgroundFile, setBackgroundFile] = useState<ImageFile | null>(null);
+  
+  const [clothingOption, setClothingOption] = useState<ClothingOption>(ClothingOption.Classic);
+  const [customClothingPrompt, setCustomClothingPrompt] = useState('');
+  const [clothingFile, setClothingFile] = useState<ImageFile | null>(null);
+
+  const [numberOfImages, setNumberOfImages] = useState(4);
+  const [isLoading, setIsLoading] = useState(false);
+  const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
+  const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null);
+  
+  const isGenerationCancelled = useRef(false);
+
+  const { currentUser, decrementCredits, removeFavorite, isFavorite } = useAuth();
+  const [creditError, setCreditError] = useState('');
+  
+  const [imageToFavorite, setImageToFavorite] = useState<string | null>(null);
+
+  const generationCost = currentUser?.paymentMethod === 'apiKey' ? 0 : numberOfImages;
+
+  const runGeneration = useCallback(async (baseImg: ImageFile, prompt: string, variationId: string, backgroundPromptForRun: string) => {
+      const resolutionPrompt = RESOLUTION_PROMPT_MAP[resolution];
+      const shotTypePrompt = SHOT_TYPE_PROMPT_MAP[shotType];
+      
+      let clothingPrompt = '';
+      let finalClothingFile: ImageFile | null = null;
+      
+      const personIdx = 1;
+      
+      switch (clothingOption) {
+        case ClothingOption.Custom:
+            clothingPrompt = customClothingPrompt;
+            break;
+        case ClothingOption.Upload:
+            finalClothingFile = clothingFile;
+            break;
+        default:
+            clothingPrompt = CLOTHING_PROMPT_MAP[clothingOption] || '';
+            break;
+      }
+
+      let mainPrompt: string;
+      let bgFile: ImageFile | null = null;
+      if (background === BackgroundOption.Upload && backgroundFile) {
+        bgFile = backgroundFile;
+      }
+
+      if (clothingOption === ClothingOption.Upload && finalClothingFile) {
+        let compositionInstruction = `Your task is to create a new photorealistic portrait based on the provided images.
+- **Image 1 (PERSON):** This is the subject. Perfectly preserve their identity, face, hair, and body shape/figure from this image.
+- **Image 2 (CLOTHING):** This is a clothing reference ONLY. Extract the clothing's style, color, and type. **CRITICAL**: IGNORE the person, pose, lighting, and background from Image 2.
+- **Goal:** Create a new photograph of the PERSON from Image 1 wearing the CLOTHING from Image 2. Invent a new, natural pose.`;
+        
+        if (background === BackgroundOption.Upload && backgroundFile) {
+            compositionInstruction += `
+- **Image 3 (BACKGROUND):** Place the newly generated person and their clothing into this background realistically.`;
+        } else {
+            compositionInstruction += `
+- **Background:** The background for the new photograph should be: ${backgroundPromptForRun}.`;
         }
-        setIsLoading(true);
-        setError(null);
-        setGeneratedImages([]);
-
-        try {
-            const images = await generateImagesFromPrompt({
-                prompt,
-                model: selectedModel,
-                aspectRatio: selectedAspectRatio,
-                numberOfImages: selectedImageCount,
-            });
-            setGeneratedImages(images);
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'An unexpected error occurred.');
-        } finally {
-            setIsLoading(false);
+    
+        mainPrompt = `${compositionInstruction} Now, apply this artistic variation to the scene: "${prompt}". Regarding the final framing of the shot: ${shotTypePrompt}. ${BASE_PROMPT}`;
+      } else {
+        if (background === BackgroundOption.Upload && backgroundFile) {
+          mainPrompt = `${clothingPrompt} The final image should be a cohesive, photorealistic photograph. Apply the following style variation: ${prompt}. ${shotTypePrompt}. Maintain 100% identity of the person (from image ${personIdx}). ${BASE_PROMPT}`;
+        } else {
+          mainPrompt = `A photorealistic portrait of the same person from the provided image (image ${personIdx}). Maintain 100% identity. ${clothingPrompt}. ${shotTypePrompt}. ${prompt}. ${backgroundPromptForRun}. ${BASE_PROMPT}`;
         }
-    }, [prompt, selectedModel, selectedAspectRatio, selectedImageCount]);
+      }
 
-    return (
-        <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center p-4 sm:p-6 md:p-8">
-            <div className="w-full max-w-6xl mx-auto">
-                <header className="text-center mb-8">
-                    <h1 className="text-4xl sm:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500">
-                        AI Image Generator
-                    </h1>
-                    <p className="mt-2 text-lg text-gray-400">
-                        Craft stunning visuals from your words. Powered by Google Gemini.
-                    </p>
-                </header>
+      const fullPrompt = `${mainPrompt} **CRITICAL FINAL INSTRUCTION**: ${resolutionPrompt}`;
 
-                <main>
-                    <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-6 shadow-2xl border border-gray-700">
-                        <div className="flex flex-col gap-6">
-                            <div>
-                                <label htmlFor="prompt-input" className="block text-sm font-medium text-gray-400 mb-2">
-                                    Your Prompt
-                                </label>
-                                <textarea
-                                    id="prompt-input"
-                                    rows={3}
-                                    value={prompt}
-                                    onChange={(e) => setPrompt(e.target.value)}
-                                    placeholder="e.g., A futuristic city skyline at sunset, with flying cars..."
-                                    className="w-full p-3 text-base text-white bg-gray-700 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition duration-150 ease-in-out resize-none"
-                                    disabled={isLoading}
-                                />
-                            </div>
-                            <div className="flex flex-col sm:flex-row gap-4 flex-wrap">
-                                <SelectInput
-                                    label="Model"
-                                    value={selectedModel}
-                                    onChange={(e) => setSelectedModel(e.target.value)}
-                                    options={MODELS}
-                                    disabled={isLoading}
-                                    icon={<svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>}
-                                />
-                                <SelectInput
-                                    label="Aspect Ratio"
-                                    value={selectedAspectRatio}
-                                    onChange={(e) => setSelectedAspectRatio(e.target.value as AspectRatio)}
-                                    options={ASPECT_RATIOS}
-                                    disabled={isLoading}
-                                    icon={<svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v4m0 0h-4m4 0l-5-5"></path></svg>}
-                                />
-                                <SelectInput
-                                    label="Number of Images"
-                                    value={selectedImageCount}
-                                    onChange={(e) => setSelectedImageCount(Number(e.target.value))}
-                                    options={IMAGE_COUNTS}
-                                    disabled={isLoading}
-                                    icon={<svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>}
-                                />
-                            </div>
-                            <button
-                                onClick={handleGenerateClick}
-                                disabled={isLoading}
-                                className="w-full flex items-center justify-center bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg transition-all duration-300 ease-in-out transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100"
-                            >
-                                {isLoading ? (
-                                    <>
-                                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                        </svg>
-                                        Generating...
-                                    </>
-                                ) : (
-                                    <>
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
-                                        Generate Images
-                                    </>
-                                )}
-                            </button>
-                        </div>
-                    </div>
+      try {
+        const apiKey = currentUser?.paymentMethod === 'apiKey' ? currentUser.apiKey : undefined;
+        const src = await generatePortrait(baseImg, fullPrompt, bgFile, finalClothingFile, apiKey);
+        return { id: variationId, src, prompt, status: 'success' as const };
+      } catch (error) {
+        console.error(`Failed to generate image for id ${variationId}:`, error);
+        return { id: variationId, src: null, prompt, status: 'error' as const };
+      }
+  }, [resolution, background, backgroundFile, shotType, clothingOption, customClothingPrompt, clothingFile, currentUser]);
 
-                    <div className="mt-8">
-                        {isLoading && <Spinner message="Conjuring pixels from the digital ether..."/>}
-                        {error && (
-                            <div className="bg-red-900/50 border border-red-700 text-red-300 px-4 py-3 rounded-lg text-center" role="alert">
-                                <strong className="font-bold">Oh no! </strong>
-                                <span className="block sm:inline">{error}</span>
-                            </div>
-                        )}
-                        {generatedImages.length > 0 && (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                                {generatedImages.map((src, index) => (
-                                    <div key={index} className="bg-gray-800 rounded-lg overflow-hidden shadow-lg transform transition-transform duration-300 hover:scale-105 hover:shadow-2xl hover:shadow-purple-500/20">
-                                        <img
-                                            src={src}
-                                            alt={`Generated image ${index + 1}`}
-                                            className="w-full h-full object-cover"
-                                        />
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                         {!isLoading && !error && generatedImages.length === 0 && (
-                            <div className="text-center py-16 px-6 bg-gray-800/30 rounded-2xl border-2 border-dashed border-gray-700">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="mx-auto h-12 w-12 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                                <h3 className="mt-2 text-xl font-medium text-gray-300">Your creations will appear here</h3>
-                                <p className="mt-1 text-sm text-gray-500">Enter a prompt and click "Generate" to start.</p>
-                            </div>
-                        )}
-                    </div>
-                </main>
+
+  const handleSubmit = useCallback(async () => {
+    if (!imageFile || !currentUser) return;
+    if (background === BackgroundOption.Upload && !backgroundFile) {
+      alert("Пожалуйста, загрузите файл фона.");
+      return;
+    }
+    if (clothingOption === ClothingOption.Upload && !clothingFile) {
+      alert("Пожалуйста, загрузите файл с примером одежды.");
+      return;
+    }
+
+    if (currentUser.paymentMethod === 'credits' && currentUser.credits < generationCost) {
+        setCreditError(`Недостаточно кредитов. Требуется: ${generationCost}, у вас: ${currentUser.credits}`);
+        return;
+    }
+    
+    if (currentUser.paymentMethod === 'apiKey' && !currentUser.apiKey) {
+        setCreditError('Выбран способ оплаты "свой API ключ", но ключ не указан в профиле.');
+        return;
+    }
+
+    if (currentUser.paymentMethod === 'credits') {
+      const creditsDecremented = await decrementCredits(generationCost);
+      if (!creditsDecremented) {
+          setCreditError('Не удалось списать кредиты. Попробуйте снова.');
+          return;
+      }
+    }
+
+    setCreditError('');
+    isGenerationCancelled.current = false;
+    setIsLoading(true);
+
+    const anglePrompts = VARIATION_PROMPTS[OutputMode.Angles].slice(0, numberOfImages);
+    const expressionPrompts = VARIATION_PROMPTS[OutputMode.Expressions];
+
+    const promptsToRun = anglePrompts.map((anglePrompt, index) => {
+        let combinedText = anglePrompt.text;
+        if (withEmotions) {
+            const expression = expressionPrompts[index % expressionPrompts.length];
+            const anglePart = anglePrompt.text.replace(/\.$/, '');
+            const expressionPart = expression.text.replace(/^A portrait /i, '');
+            combinedText = `${anglePart} ${expressionPart}.`;
+        }
+        return {
+            id: anglePrompt.id,
+            text: combinedText
+        };
+    });
+    
+    let batchBackgroundPrompt = '';
+    if (background === BackgroundOption.Automatic) {
+        const randomIndex = Math.floor(Math.random() * AUTOMATIC_BACKGROUND_SUGGESTIONS.length);
+        batchBackgroundPrompt = AUTOMATIC_BACKGROUND_SUGGESTIONS[randomIndex];
+    } else if (background !== BackgroundOption.Upload) {
+        batchBackgroundPrompt = BACKGROUND_PROMPT_MAP[background] || '';
+    }
+
+    const initialImages: GeneratedImage[] = promptsToRun.map(p => ({
+      id: p.id,
+      src: null,
+      prompt: p.text,
+      status: 'pending',
+      resolution: resolution,
+      backgroundPrompt: batchBackgroundPrompt,
+    }));
+    setGeneratedImages(initialImages);
+
+    for (const [index, variationPrompt] of promptsToRun.entries()) {
+        if (isGenerationCancelled.current) {
+          console.log("Generation stopped by user.");
+          break;
+        }
+
+        if (index > 0) await sleep(2500);
+
+        const result = await runGeneration(imageFile, variationPrompt.text, variationPrompt.id, batchBackgroundPrompt);
+        if (isGenerationCancelled.current) break;
+        setGeneratedImages(prev => prev.map(img => img.id === result.id ? { ...img, ...result } : img));
+    }
+
+    setIsLoading(false);
+  }, [imageFile, withEmotions, numberOfImages, runGeneration, background, backgroundFile, resolution, clothingOption, clothingFile, currentUser, decrementCredits, generationCost]);
+
+  const handleStopGeneration = () => {
+    isGenerationCancelled.current = true;
+    setIsLoading(false);
+  };
+
+  const handleRegenerate = useCallback(async (imageId: string) => {
+    if (!imageFile || !currentUser) return;
+     if (background === BackgroundOption.Upload && !backgroundFile) {
+      alert("Пожалуйста, загрузите файл фона, чтобы перегенерировать изображение.");
+      return;
+    }
+    if (clothingOption === ClothingOption.Upload && !clothingFile) {
+      alert("Пожалуйста, загрузите файл с примером одежды, чтобы перегенерировать изображение.");
+      return;
+    }
+    
+    if (currentUser.paymentMethod === 'credits' && currentUser.credits < 1) {
+        alert("Недостаточно кредитов для перегенерации.");
+        return;
+    }
+
+    if (currentUser.paymentMethod === 'apiKey' && !currentUser.apiKey) {
+        alert('Выбран способ оплаты "свой API ключ", но ключ не указан в профиле.');
+        return;
+    }
+    
+    if (currentUser.paymentMethod === 'credits') {
+      const creditsDecremented = await decrementCredits(1);
+      if (!creditsDecremented) {
+          alert("Не удалось списать кредиты. Попробуйте снова.");
+          return;
+      }
+    }
+
+    const imageToRegen = generatedImages.find(img => img.id === imageId);
+    if (!imageToRegen) return;
+
+    setGeneratedImages(prev => prev.map(img => img.id === imageId ? { ...img, status: 'pending' } : img));
+    const result = await runGeneration(imageFile, imageToRegen.prompt, imageId, imageToRegen.backgroundPrompt);
+    setGeneratedImages(prev => prev.map(img => img.id === result.id ? { ...img, ...result, resolution: resolution } : img));
+  }, [imageFile, generatedImages, runGeneration, background, backgroundFile, resolution, clothingOption, clothingFile, currentUser, decrementCredits]);
+
+  const handleDelete = (imageId: string) => {
+      const imageToDelete = generatedImages.find(img => img.id === imageId);
+      if (imageToDelete?.src && isFavorite(imageToDelete.src)) {
+        removeFavorite(imageToDelete.src);
+      }
+      setGeneratedImages(prev => prev.filter(img => img.id !== imageId));
+      if (selectedImage?.id === imageId) {
+        setSelectedImage(null);
+      }
+  };
+  
+  const handleDownload = (src: string, filename?: string) => {
+      const link = document.createElement('a');
+      link.href = src;
+      link.download = filename || `portrait_${Date.now()}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+  };
+
+  const handleDownloadAll = () => {
+    generatedImages.forEach((image, index) => {
+        if (image.src && image.status === 'success') {
+            setTimeout(() => {
+                handleDownload(image.src!, `portrait_${image.id}_${index + 1}.png`);
+            }, index * 300);
+        }
+    });
+  };
+
+  const handleImageClick = (image: GeneratedImage) => {
+    if (image.status === 'success' && image.src) {
+        setSelectedImage(image);
+    }
+  };
+
+  const handleCloseModal = () => {
+    setSelectedImage(null);
+  };
+
+  const isSubmitDisabled = !imageFile || 
+    (background === BackgroundOption.Upload && !backgroundFile) || 
+    (clothingOption === ClothingOption.Upload && !clothingFile) ||
+    (currentUser?.paymentMethod === 'credits' && (currentUser?.credits ?? 0) < generationCost) ||
+    (currentUser?.paymentMethod === 'apiKey' && !currentUser?.apiKey);
+
+  return (
+    <div className="min-h-screen bg-brand-primary flex flex-col md:flex-row">
+      <header className="md:hidden p-4 bg-brand-secondary/50 backdrop-blur-sm border-b border-brand-secondary flex items-center justify-between">
+          <h1 className="text-2xl font-bold text-brand-text-primary">SeTka Project</h1>
+          <button onClick={onNavigateHome} title="На главную" className="text-brand-text-secondary hover:text-brand-accent transition-colors">
+            <HomeIcon />
+          </button>
+      </header>
+      <aside className="w-full md:w-96 bg-brand-secondary/30 p-4 md:p-6 flex-shrink-0 space-y-6 md:h-screen md:overflow-y-auto">
+        <div className="hidden md:block">
+            <div className="flex justify-between items-start">
+              <div>
+                <h1 className="text-3xl font-bold text-brand-text-primary">SeTka Project</h1>
+                <p className="text-sm text-brand-text-secondary">Портретный Адаптер</p>
+              </div>
+               <button onClick={onNavigateHome} title="На главную" className="text-brand-text-secondary hover:text-brand-accent transition-colors p-1 -mr-1">
+                <HomeIcon />
+              </button>
             </div>
         </div>
-    );
+
+        <FileUpload 
+          id="face-file-upload"
+          label="Загрузите Фото Лица"
+          description="Загрузите четкое фото. Оно будет автоматически вписано в выбранный формат."
+          selectedFile={imageFile}
+          onFileSelect={setImageFile}
+          targetResolution={resolution}
+        />
+        
+        <SelectInput
+          label="Одежда"
+          description="Выберите стиль одежды для портрета."
+          options={CLOTHING_OPTIONS}
+          value={clothingOption}
+          onChange={(val) => setClothingOption(val as ClothingOption)}
+        />
+
+        {clothingOption === ClothingOption.Custom && (
+            <div>
+              <label htmlFor="custom-clothing-prompt" className="block text-sm font-medium text-brand-text-secondary">
+                Опишите одежду
+              </label>
+              <textarea
+                id="custom-clothing-prompt"
+                rows={3}
+                className="mt-1 block w-full text-sm bg-brand-secondary border-gray-600 focus:outline-none focus:ring-brand-accent focus:border-brand-accent rounded-md text-brand-text-primary p-2"
+                placeholder="Например: 'в красном платье в горошек'"
+                value={customClothingPrompt}
+                onChange={(e) => setCustomClothingPrompt(e.target.value)}
+              />
+            </div>
+        )}
+
+        {clothingOption === ClothingOption.Upload && (
+            <FileUpload
+                id="clothing-file-upload"
+                label="Загрузите Пример Одежды"
+                description="Загрузите фото с одеждой. Оно будет автоматически вписано в выбранный формат."
+                selectedFile={clothingFile}
+                onFileSelect={setClothingFile}
+                targetResolution={resolution}
+            />
+        )}
+
+        <ToggleSwitch
+          label="Добавить эмоции"
+          description="Включите, чтобы добавить случайные эмоции (улыбка, удивление и т.д.) к генерируемым ракурсам."
+          enabled={withEmotions}
+          onChange={setWithEmotions}
+        />
+        
+        <SelectInput
+          label="План"
+          description="Выберите кадрирование портрета."
+          options={SHOT_TYPE_OPTIONS}
+          value={shotType}
+          onChange={(val) => setShotType(val as ShotType)}
+        />
+
+        <SelectInput
+          label="Выбор фона"
+          description="Выберите фон для портрета."
+          options={BACKGROUND_OPTIONS}
+          value={background}
+          onChange={(val) => {
+            setBackground(val as BackgroundOption);
+            if (val !== BackgroundOption.Upload) {
+              setBackgroundFile(null);
+            }
+          }}
+        />
+        
+        {background === BackgroundOption.Upload && (
+          <FileUpload
+            id="background-file-upload"
+            label="Загрузите Файл Фона"
+            description="Выберите изображение для фона. Оно будет автоматически вписано в выбранный формат."
+            selectedFile={backgroundFile}
+            onFileSelect={setBackgroundFile}
+            targetResolution={resolution}
+          />
+        )}
+
+
+        <SelectInput
+          label="Разрешение и Соотношение Сторон"
+          options={RESOLUTION_OPTIONS}
+          value={resolution}
+          onChange={(val) => setResolution(val as ResolutionOption)}
+        />
+
+        <div>
+            <label htmlFor="image-count" className="block text-sm font-medium text-brand-text-secondary mb-1">
+                Количество изображений: <span className="font-bold text-brand-accent">{numberOfImages}</span>
+            </label>
+            <input
+                id="image-count"
+                type="range"
+                min="1"
+                max="20"
+                value={numberOfImages}
+                onChange={(e) => setNumberOfImages(Number(e.target.value))}
+                className="w-full h-2 bg-brand-secondary rounded-lg appearance-none cursor-pointer accent-brand-accent"
+            />
+        </div>
+
+        <div className="pt-4 sticky bottom-0 bg-brand-secondary/30 md:bg-transparent pb-4 md:pb-0">
+           {isLoading ? (
+              <button
+                onClick={handleStopGeneration}
+                className="w-full bg-red-600 text-white font-bold py-3 px-4 rounded-md hover:bg-red-500 transition-colors flex items-center justify-center"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M5 5a1 1 0 00-1 1v8a1 1 0 001 1h8a1 1 0 001-1V6a1 1 0 00-1-1H5z" clipRule="evenodd" />
+                </svg>
+                Стоп
+              </button>
+           ) : (
+              <button
+                onClick={handleSubmit}
+                disabled={isSubmitDisabled}
+                className="w-full bg-brand-accent text-brand-primary font-bold py-3 px-4 rounded-md hover:bg-amber-400 transition-colors disabled:bg-gray-500 disabled:cursor-not-allowed flex items-center justify-center"
+              >
+                { currentUser?.paymentMethod === 'apiKey' 
+                  ? 'Сгенерировать (свой API ключ)'
+                  : `Сгенерировать (${generationCost} ${generationCost === 1 ? 'кредит' : (generationCost > 1 && generationCost < 5) ? 'кредита' : 'кредитов'})`
+                }
+              </button>
+           )}
+           {creditError && <p className="text-sm text-center text-red-500 mt-2">{creditError}</p>}
+           {currentUser?.paymentMethod === 'credits' && (currentUser?.credits ?? 0) < generationCost && !creditError && <p className="text-sm text-center text-yellow-400 mt-2">Недостаточно кредитов для генерации {generationCost} изображений.</p>}
+        </div>
+      </aside>
+
+      <main className="flex-1 bg-brand-primary">
+        <ImageGallery 
+          title="Ваши адаптивные портреты" 
+          images={generatedImages}
+          onDownload={handleDownload}
+          onRegenerate={handleRegenerate}
+          onDelete={handleDelete}
+          onDownloadAll={handleDownloadAll}
+          onImageClick={handleImageClick}
+          isFavorite={isFavorite}
+          onAddToFavorites={(src) => setImageToFavorite(src)}
+        />
+      </main>
+
+      {selectedImage && (
+        <ImageModal 
+          image={selectedImage}
+          onClose={handleCloseModal}
+          onDownload={handleDownload}
+          onRegenerate={handleRegenerate}
+          onDelete={handleDelete}
+          isFavorite={selectedImage.src ? isFavorite(selectedImage.src) : false}
+          onAddToFavorites={(src) => setImageToFavorite(src)}
+          onRemoveFromFavorites={(src) => removeFavorite(src)}
+        />
+      )}
+      {imageToFavorite && <AddToFavoritesModal imageSrc={imageToFavorite} onClose={() => setImageToFavorite(null)} />}
+    </div>
+  );
 };
 
 export default App;

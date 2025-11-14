@@ -1,40 +1,43 @@
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AI Image Generator</title>
+    <title>SeTka Project: Портретный Адаптер</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-      /* Custom scrollbar for better aesthetics */
-      ::-webkit-scrollbar {
-        width: 8px;
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              'brand-primary': '#1e293b',
+              'brand-secondary': '#334155',
+              'brand-accent': '#f59e0b',
+              'brand-text-primary': '#f8fafc',
+              'brand-text-secondary': '#cbd5e1',
+            }
+          }
+        }
       }
-      ::-webkit-scrollbar-track {
-        background: #2d3748; /* gray-800 */
-      }
-      ::-webkit-scrollbar-thumb {
-        background: #4a5568; /* gray-600 */
-        border-radius: 4px;
-      }
-      ::-webkit-scrollbar-thumb:hover {
-        background: #718096; /* gray-500 */
-      }
-    </style>
+    </script>
   <script type="importmap">
 {
   "imports": {
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.29.0",
     "react/": "https://aistudiocdn.com/react@^19.2.0/",
     "react": "https://aistudiocdn.com/react@^19.2.0",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.29.1"
+    "path": "https://aistudiocdn.com/path@^0.12.7",
+    "vite": "https://aistudiocdn.com/vite@^7.2.2",
+    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1"
   }
 }
 </script>
+<link rel="stylesheet" href="/index.css">
 </head>
-  <body class="bg-gray-900 text-white">
+  <body class="bg-brand-primary text-brand-text-primary">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
   </body>

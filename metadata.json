@@ -1,5 +1,5 @@
 {
-  "name": "AI Image Generator",
-  "description": "An application to generate images from text prompts using AI. Users can select the generation model, aspect ratio, and the number of images to create.",
+  "name": "SeTka Project Art Studio",
+  "description": "Революционный инструмент от SeTka Project для создания высококачественных, фотореалистичных портретов. Позволяет генерировать одно и то же лицо с различных ракурсов и выражениями на основе загруженной фотографии.",
   "requestFramePermissions": []
 }
