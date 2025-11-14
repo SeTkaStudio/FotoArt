@@ -385,7 +385,7 @@ export const PhotoGenerationPage: React.FC<PhotoGenerationPageProps> = ({ onNavi
   return (
     <div className="min-h-screen bg-brand-primary flex flex-col md:flex-row">
       <header className="md:hidden p-4 bg-brand-secondary/50 backdrop-blur-sm border-b border-brand-secondary flex items-center justify-between">
-s        <h1 className="text-xl font-bold text-brand-text-primary">Генерация фото</h1>
+          <h1 className="text-xl font-bold text-brand-text-primary">Генерация фото</h1>
           <button onClick={onNavigateBack} title="Назад в меню" className="text-brand-text-secondary hover:text-brand-accent transition-colors">
             <BackIcon />
           </button>
@@ -438,14 +438,14 @@ s        <h1 className="text-xl font-bold text-brand-text-primary">Гене�
                 {currentModel.supportsImageInput && (
                     <>
                         <button
-          _                type="button"
+                            type="button"
                             onClick={() => fileInputRef.current?.click()}
                             title="Прикрепить изображение"
                             className="absolute top-2 right-2 p-2 rounded-full text-brand-text-secondary hover:bg-brand-primary hover:text-brand-accent transition-colors"
                         >
                             <UploadIcon />
                         </button>
-                  _     <input
+                        <input
                             ref={fileInputRef}
                             type="file"
                             className="sr-only"
@@ -462,12 +462,12 @@ s        <h1 className="text-xl font-bold text-brand-text-primary">Гене�
                         onClick={() => setBaseImage(null)}
                         className="absolute top-0.5 right-0.5 bg-black/60 text-white rounded-full p-1 hover:bg-black/80 transition-colors"
                         title="Удалить изображение"
-                    >
+                D    >
                         <CloseIcon />
                     </button>
                 </div>
             )}
-             {!currentModel.supportsImageInput && (
+  _           {!currentModel.supportsImageInput && (
                 <p className="mt-2 text-xs text-brand-text-secondary">
                     Модель {currentModel.name} не поддерживает загрузку изображений.
                 </p>
@@ -497,7 +497,7 @@ s        <h1 className="text-xl font-bold text-brand-text-primary">Гене�
 
         <SelectInput
           label="Формат изображения"
-s          options={aspectRatioOptions.map(opt => opt.label)}
+          options={aspectRatioOptions.map(opt => opt.label)}
           value={aspectRatioOptions.find(opt => opt.ratio === aspectRatio)?.label || ''}
           onChange={(val) => {
               const selectedOpt = aspectRatioOptions.find(opt => opt.label === val);
@@ -513,7 +513,7 @@ s          options={aspectRatioOptions.map(opt => opt.label)}
             </label>
             <input
                 id="image-count"
-s              type="range"
+                type="range"
                 min="1"
                 max={currentModel.maxImages}
                 value={numberOfImages}
@@ -523,7 +523,7 @@ s              type="range"
              <p className="mt-2 text-xs text-brand-text-secondary">
                 {currentModel.name} генерирует до {currentModel.maxImages} изображений.
              </p>
-D      </div>
+        </div>
 
         <div className="pt-4 sticky bottom-0 bg-brand-secondary/30 md:bg-transparent pb-4 md:pb-0">
            {isLoading ? (
@@ -536,7 +536,7 @@ D      </div>
                 </svg>
                 Стоп
               </button>
-           ) : (
+D        ) : (
               <button
                 onClick={handleSubmit}
                 disabled={isSubmitDisabled}
@@ -545,8 +545,8 @@ D      </div>
                 { currentUser?.paymentMethod === 'apiKey' 
                   ? 'Сгенерировать (свой API ключ)'
                   : `Сгенерировать (${generationCost} ${generationCost === 1 ? 'кредит' : (generationCost > 1 && generationCost < 5) ? 'кредита' : 'кредитов'})`
-D              }
-        _      </button>
+A              }
+              </button>
            )}
            {creditError && <p className="text-sm text-center text-red-500 mt-2">{creditError}</p>}
            {currentUser?.paymentMethod === 'credits' && (currentUser?.credits ?? 0) < generationCost && !isLoading && !creditError && <p className="text-sm text-center text-yellow-400 mt-2">Недостаточно кредитов для генерации {generationCost} изображений.</p>}
@@ -564,7 +564,7 @@ D              }
           onImageClick={handleImageClick}
           isFavorite={isFavorite}
           onAddToFavorites={(src) => setImageToFavorite(src)}
-        />
+G        />
       </main>
 
       {selectedImage && (
@@ -573,13 +573,13 @@ D              }
           onClose={() => setSelectedImage(null)}
           onDownload={handleDownload}
           onRegenerate={handleRegenerate}
-s          onDelete={handleDelete}
+          onDelete={handleDelete}
           isFavorite={selectedImage.src ? isFavorite(selectedImage.src) : false}
           onAddToFavorites={(src) => setImageToFavorite(src)}
           onRemoveFromFavorites={removeFavorite}
         />
       )}
       {imageToFavorite && <AddToFavoritesModal imageSrc={imageToFavorite} onClose={() => setImageToFavorite(null)} />}
-    </div>
-  );
+</div>
+s);
 };
