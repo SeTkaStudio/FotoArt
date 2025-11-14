@@ -462,12 +462,12 @@ export const PhotoGenerationPage: React.FC<PhotoGenerationPageProps> = ({ onNavi
                         onClick={() => setBaseImage(null)}
                         className="absolute top-0.5 right-0.5 bg-black/60 text-white rounded-full p-1 hover:bg-black/80 transition-colors"
                         title="Удалить изображение"
-                D    >
+                    >
                         <CloseIcon />
                     </button>
                 </div>
             )}
-  _           {!currentModel.supportsImageInput && (
+             {!currentModel.supportsImageInput && (
                 <p className="mt-2 text-xs text-brand-text-secondary">
                     Модель {currentModel.name} не поддерживает загрузку изображений.
                 </p>
@@ -536,7 +536,7 @@ export const PhotoGenerationPage: React.FC<PhotoGenerationPageProps> = ({ onNavi
                 </svg>
                 Стоп
               </button>
-D        ) : (
+        ) : (
               <button
                 onClick={handleSubmit}
                 disabled={isSubmitDisabled}
@@ -545,7 +545,7 @@ D        ) : (
                 { currentUser?.paymentMethod === 'apiKey' 
                   ? 'Сгенерировать (свой API ключ)'
                   : `Сгенерировать (${generationCost} ${generationCost === 1 ? 'кредит' : (generationCost > 1 && generationCost < 5) ? 'кредита' : 'кредитов'})`
-A              }
+              }
               </button>
            )}
            {creditError && <p className="text-sm text-center text-red-500 mt-2">{creditError}</p>}
@@ -564,7 +564,7 @@ A              }
           onImageClick={handleImageClick}
           isFavorite={isFavorite}
           onAddToFavorites={(src) => setImageToFavorite(src)}
-G        />
+        />
       </main>
 
       {selectedImage && (
